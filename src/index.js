@@ -12,13 +12,18 @@ import {
   sortArrayByDate,
   sortArray,
   removeDupes,
-  runXMLHttpRequest,
   basename,
+  in_range_of_player,
+  fastMap_noNull,
+  removeElementsByClass,
 } from "./MainLogic";
 import { BinTree, RBTree } from "bintrees";
-import Player from "./Player";
+import { object } from "./Object";
 let canvas = document.getElementById("canvas");
 let timeCanvas = document.getElementById("timeCanvas");
+let mapPreviewCanvas = document.getElementById("mapPreviewCanvas");
+let mapPreviewCtx = mapPreviewCanvas.getContext("2d");
+let currentWorld;
 let ctx = canvas.getContext("2d");
 let timeCtx = timeCanvas.getContext("2d");
 let LogInOrSignUp = document.getElementById("LogInOrSignUp");
@@ -46,11 +51,21 @@ let scoreRowHeader = document.getElementById("scoreRowHeaderBtn");
 let loader = document.getElementById("loader");
 let submitText = document.getElementById("submitText");
 let respawnBtn = document.getElementById("respawnBtn");
+let worldSelectionTableBody = document.getElementById("worldSelectionTableBody");
+let createNewWorldBtn = document.getElementById("createNewWorldBtn");
+let submitWorld = document.getElementById("submitWorld");
+let uploadMapInput = document.getElementById("uploadMapInput");
+let newWorldCreatorContainer = document.getElementById("newWorldCreatorContainer");
+let worldNameInput = document.getElementById("worldNameInput");
+let mapPreviewBtn = document.getElementById("mapPreviewBtn");
+let mapObjectFilesInput = document.getElementById("mapObjectFilesInput");
+let mapObjectImageFilesInput = document.getElementById("mapObjectImageFilesInput");
 let socket = io({ reconnection: false });
 let PlayerList = [];
 let LogIn = true;
 let SignUp = false;
 let loggedIn = false;
+let worldSelected = false;
 let byDate = false;
 let byScore = true;
 let username = usernameInput.value;
@@ -98,11 +113,15 @@ let objectCollisionBox;
 let collisionData;
 let objectImage;
 let waterTiles = [2742, 2838, 2650, 2651, 2744, 2745, 2647, 2648, 2649, 2741, 2742, 2743, 2835, 2836, 2837];
-let getMapJson = new XMLHttpRequest();
-let getObjectJson = new XMLHttpRequest();
 let mainPlayer;
 let objectBinaryTree;
 let newPlayer;
+let limiters;
+let uploader = new SocketIOFileUpload(socket);
+
+// if (loggedIn == false) {
+//   worldSelected = false;
+// }
 
 //Warning: End of Global Variables
 
@@ -140,6 +159,12 @@ let resizeCanvas = function () {
   // timeCanvas.style.height = "100%";
   timeCanvas.width = resW;
   timeCanvas.height = resH;
+  mapPreviewCanvas.width = Math.floor(devW / f);
+  mapPreviewCanvas.height = Math.floor(devH / f);
+  mapPreviewCanvas.style.width = "898px";
+  mapPreviewCanvas.style.height = "898px";
+  // mapPreviewCanvas.width = resW;
+  // mapPreviewCanvas.height = resH;
 };
 
 let sendPlayerInfo = function () {
@@ -181,7 +206,8 @@ let sendBulletInfo = function () {
       id: mainPlayer.bulletList[mainPlayer.bulletList.length - 1].id,
       index: mainPlayer.bulletList[mainPlayer.bulletList.length - 1].index,
       direction: mainPlayer.bulletList[mainPlayer.bulletList.length - 1].direction,
-      timesReloaded: mainPlayer.timesReloaded,
+      bulletList: mainPlayer.bulletList.length,
+      needsToReload: mainPlayer.needsToReload,
     });
   }
 };
@@ -198,7 +224,6 @@ let pvpChecker = function () {
               socket.emit("score went up", PlayerList[i].score, PlayerList[i].username);
               mainPlayer.respawn();
             }
-            PlayerList[i].bulletList[u].erase();
             PlayerList[i].bulletList.splice(u, 1);
             socket.emit("Player health", {
               id: mainPlayer.id,
@@ -213,7 +238,6 @@ let pvpChecker = function () {
       let arr = mainPlayer.bulletList[n];
       if (checkCollision(arr, PlayerList[i])) {
         if (PlayerList[i].id !== mainPlayer.id) {
-          arr.erase();
           mainPlayer.bulletList.splice(n, 1);
         }
       }
@@ -231,6 +255,45 @@ let in_viewport = function (x, y) {
     return true;
   } else {
     return false;
+  }
+};
+
+let get_object_looping_limiters = function (arr) {
+  if (arr.length > 0) {
+    arr.sort((a, b) => {
+      if (a.y < b.y) {
+        return -1;
+      }
+      if (a.y == b.y) {
+        return 0;
+      }
+      if (a.y > b.y) {
+        return 1;
+      }
+    });
+
+    let map = fastMap_noNull(arr, (i, index) => {
+      if (in_range_of_player(i.x * tileScale, i.y * tileScale, i.width, i.height, mainPlayer)) {
+        return index;
+      } else {
+        return null;
+      }
+    });
+    // arr
+    // .map((e, index) => {
+    //   if (in_range_of_player(e.x * tileScale, e.y * tileScale, mainPlayer)) {
+    //     return index;
+    //   } else {
+    //     return null;
+    //   }
+    // })
+    // .filter((e) => {
+    //   return e;
+    // });
+    // console.log("map", map);
+
+    limiters = { first: map[map.length - 1] ? map[map.length - 1] : 0, last: map[0] ? map[0] : 0 };
+    // console.log(variable);
   }
 };
 
@@ -269,8 +332,9 @@ let updateMap = function () {
             waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex - mapWidth + 1] - 1))
         ) {
           mainPlayer.collisionDirection.right = true;
-          mainPlayer.x = mainPlayer.prevX;
-          mainPlayer.y = mainPlayer.prevY;
+          mainPlayer.speed.right = 0;
+          // mainPlayer.x = mainPlayer.prevX;
+          // mainPlayer.y = mainPlayer.prevY;
         } else {
           mainPlayer.collisionDirection.right = false;
         }
@@ -279,8 +343,9 @@ let updateMap = function () {
           waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex - mapWidth] - 1)
         ) {
           mainPlayer.collisionDirection.up = true;
-          mainPlayer.x = mainPlayer.prevX;
-          mainPlayer.y = mainPlayer.prevY;
+          mainPlayer.speed.up = 0;
+          // mainPlayer.x = mainPlayer.prevX;
+          // mainPlayer.y = mainPlayer.prevY;
         } else {
           mainPlayer.collisionDirection.up = false;
         }
@@ -290,8 +355,9 @@ let updateMap = function () {
             waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex - mapWidth - 1] - 1))
         ) {
           mainPlayer.collisionDirection.left = true;
-          mainPlayer.x = mainPlayer.prevX;
-          mainPlayer.y = mainPlayer.prevY;
+          mainPlayer.speed.left = 0;
+          // mainPlayer.x = mainPlayer.prevX;
+          // mainPlayer.y = mainPlayer.prevY;
         } else {
           mainPlayer.collisionDirection.left = false;
         }
@@ -300,8 +366,9 @@ let updateMap = function () {
           waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex + mapWidth] - 1)
         ) {
           mainPlayer.collisionDirection.down = true;
-          mainPlayer.x = mainPlayer.prevX;
-          mainPlayer.y = mainPlayer.prevY;
+          mainPlayer.speed.down = 0;
+          // mainPlayer.x = mainPlayer.prevX;
+          // mainPlayer.y = mainPlayer.prevY;
         } else {
           mainPlayer.collisionDirection.down = false;
         }
@@ -310,12 +377,13 @@ let updateMap = function () {
           mainPlayer.respawn();
         }
         if (
-          (waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex + 1] - 1) ||
-            waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex - mapWidth + 1] - 1)) &&
+          waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex + 1] - 1) &&
+          waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex - mapWidth + 1] - 1) &&
           waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex - mapWidth] - 1) &&
-          (waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex - 1] - 1) ||
-            waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex - mapWidth - 1] - 1)) &&
-          waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex + mapWidth] - 1)
+          waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex - 1] - 1) &&
+          waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex - mapWidth - 1] - 1) &&
+          waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex + mapWidth] - 1) &&
+          waterTiles.includes(mapJson.layers[i]?.data[mainPlayerIndex] - 1)
         ) {
           mainPlayer.respawn();
         }
@@ -329,62 +397,36 @@ let updateMap = function () {
   }
 };
 
-let updateObjectBinaryTree = function () {
-  // PlayerList.forEach((player) => {
-  //   objectBinaryTree.each((node) => {
-  //     if (node.type == "player") {
-  //       objectBinaryTree.remove({
-  //         type: "player",
-  //         y: node.y,
-  //         id: player.id,
-  //         draw: node.draw,
-  //       });
-  //     }
-  //   });
-  //   objectBinaryTree.insert({
-  //     type: "player",
-  //     y: player.y,
-  //     id: player.id,
-  //     draw: drawPlayers(player),
-  //   });
-  // });
-};
-
 let checkObjectCollision = function (currentObject, mainPlayer) {
   if (checkCollision(currentObject, mainPlayer)) {
     if (mainPlayer.direction.right || mainPlayer.lastDirection == "right") {
       mainPlayer.collisionDirection.right = true;
-      mainPlayer.collisionDirection.left = false;
-      mainPlayer.x = mainPlayer.prevX - 4 * PlayerList.length;
+      mainPlayer.speed.right = 0;
+      mainPlayer.x = mainPlayer.prevX;
       mainPlayer.y = mainPlayer.prevY;
-    } else {
-      mainPlayer.collisionDirection.right = false;
     }
     if (mainPlayer.direction.up || mainPlayer.lastDirection == "up") {
       mainPlayer.collisionDirection.up = true;
-      mainPlayer.collisionDirection.down = false;
+      mainPlayer.speed.up = 0;
       mainPlayer.x = mainPlayer.prevX;
-      mainPlayer.y = mainPlayer.prevY + 4 * PlayerList.length;
-    } else {
-      mainPlayer.collisionDirection.up = false;
+      mainPlayer.y = mainPlayer.prevY;
     }
     if (mainPlayer.direction.left || mainPlayer.lastDirection == "left") {
       mainPlayer.collisionDirection.left = true;
-      mainPlayer.collisionDirection.right = false;
-      mainPlayer.x = mainPlayer.prevX + 4 * PlayerList.length;
+      mainPlayer.speed.left = 0;
+      mainPlayer.x = mainPlayer.prevX;
       mainPlayer.y = mainPlayer.prevY;
-    } else {
-      mainPlayer.collisionDirection.left = false;
     }
     if (mainPlayer.direction.down || mainPlayer.lastDirection == "down") {
       mainPlayer.collisionDirection.down = true;
-      mainPlayer.collisionDirection.up = false;
+      mainPlayer.speed.down = 0;
       mainPlayer.x = mainPlayer.prevX;
-      mainPlayer.y = mainPlayer.prevY - 4 * PlayerList.length;
-    } else {
-      mainPlayer.collisionDirection.down = false;
+      mainPlayer.y = mainPlayer.prevY;
     }
+  } else {
+    mainPlayer.resetSpeed();
   }
+
   for (let i in mainPlayer.bulletList) {
     let arr = mainPlayer.bulletList[i];
     if (checkCollision(currentObject, arr)) {
@@ -395,48 +437,55 @@ let checkObjectCollision = function (currentObject, mainPlayer) {
 
 let updateObjects = function () {
   for (let i = 0; i < mapJson.layers.length; i++) {
-    mapJson.layers[i].objects?.sort((a, b) => {
-      if (a.y < b.y) {
-        return -1;
-      }
-      if (a.y == b.y) {
-        return 0;
-      }
-      if (a.y > b.y) {
-        return 1;
-      }
-    });
-    for (let n = 0; n < mapJson.layers[i].objects?.length; n++) {
-      let object = function (box) {
-        this.collisionBox = box;
-      };
-      objectValues = mapJson.layers[i].objects[n];
-      for (let b in objectJson.tiles[objectValues.properties[0].value].objectgroup.objects) {
-        let arr = objectJson.tiles[objectValues.properties[0].value].objectgroup.objects[b];
+    if (mapJson.layers[i].objects) {
+      get_object_looping_limiters(mapJson.layers[i].objects);
+      for (let n = 0; n < mapJson.layers[i].objects.length - 1; n++) {
+        objectValues = mapJson.layers[i].objects[n];
         objectImage = new Image();
-        objectImage.src = `../images/${basename(objectJson.tiles[objectValues.properties[0].value].image)}`;
-        collisionData = arr;
-        objectClippingWidth = objectValues.width * tileScale;
-        objectClippingHeight = objectValues.height * tileScale;
-        objectDrawX = objectValues.x * tileScale;
-        objectDrawY = objectValues.y * tileScale - objectClippingHeight;
+        objectImage.src = `../objectImageFiles/${basename(
+          objectJson.tiles[objectValues?.properties[0].value].image
+        )}?worldName=${currentWorld}`;
+        objectClippingWidth = objectValues?.width * tileScale;
+        objectClippingHeight = objectValues?.height * tileScale;
+        objectDrawX = objectValues?.x * tileScale;
+        objectDrawY = objectValues?.y * tileScale - objectClippingHeight;
 
-        objectCollisionBox = {
-          x: objectDrawX + collisionData?.x * tileScale,
-          y: objectDrawY + collisionData?.y * tileScale,
-          xMax: objectDrawX + collisionData?.x * tileScale + collisionData?.width * tileScale,
-          yMax: objectDrawY + collisionData?.y * tileScale + collisionData?.height * tileScale,
-        };
-        let currentObject = new object(objectCollisionBox);
-        if (in_viewport(objectDrawX, objectDrawY)) {
-          checkObjectCollision(currentObject, mainPlayer);
+        if (objectImage && objectDrawX && objectDrawY && objectClippingWidth && objectClippingHeight) {
+          objectCollisionHandler();
+          objectBinaryTree.insert({
+            type: "object",
+            y: objectDrawY,
+            draw: (() => {
+              drawObjects(objectImage, objectDrawX, objectDrawY, objectClippingWidth, objectClippingHeight);
+              // ctx.fillText(n, objectDrawX, objectDrawY);
+            })(),
+          });
         }
       }
-      objectBinaryTree.insert({
-        type: "object",
-        y: objectDrawY,
-        draw: drawObjects(objectImage, objectDrawX, objectDrawY, objectClippingWidth, objectClippingHeight),
-      });
+    }
+  }
+};
+
+let objectCollisionHandler = function () {
+  for (let i = 0; i < mapJson.layers.length; i++) {
+    if (mapJson.layers[i].objects) {
+      for (let n = limiters?.first; n <= limiters?.last; n++) {
+        for (let b in objectJson.tiles[objectValues?.properties[0].value]?.objectgroup?.objects) {
+          let arr = objectJson.tiles[objectValues?.properties[0].value]?.objectgroup?.objects[b];
+          collisionData = arr;
+          objectCollisionBox = {
+            x: objectDrawX + collisionData?.x * tileScale,
+            y: objectDrawY + collisionData?.y * tileScale,
+            xMax: objectDrawX + collisionData?.x * tileScale + collisionData?.width * tileScale,
+            yMax: objectDrawY + collisionData?.y * tileScale + collisionData?.height * tileScale,
+          };
+          let currentObject = new object(objectCollisionBox);
+
+          if (in_viewport(objectDrawX, objectDrawY)) {
+            checkObjectCollision(currentObject, mainPlayer);
+          }
+        }
+      }
     }
   }
 };
@@ -567,63 +616,61 @@ let drawTime = function () {
 };
 
 let drawingLoop = function () {
+  // if (worldSelected) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
-  PlayerList.forEach((player) => {
-    player.drawn = false;
-  });
   getLeaderboardValues();
-  actionLogic(mainPlayer);
   ctx.save();
   viewport.w = canvas.width;
   viewport.h = canvas.height;
-  viewport.scroll(Math.floor(mainPlayer.x - canvas.width / 2), Math.floor(mainPlayer.y - canvas.height / 2));
+  viewport.scroll(
+    Math.round(Math.round(mainPlayer.x) - canvas.width / 2),
+    Math.round(Math.round(mainPlayer.y) - canvas.height / 2)
+  );
   ctx.translate(Math.floor(-1 * viewport.x), Math.floor(-1 * viewport.y));
   mapWidth = mapJson?.layers[0]?.width;
   mapHeight = mapJson?.layers[0]?.height;
   leftMostIndex = Math.floor((viewport.x / tileSize) * (viewport.y / tileSize));
-  mainPlayerIndexX = Math.floor((mainPlayer.x + mainPlayer.width / 2) / tileSize);
-  mainPlayerIndexY = Math.floor((mainPlayer.y + mainPlayer.height) / tileSize);
+  mainPlayerIndexX = Math.floor((Math.round(mainPlayer.x) + mainPlayer.width / 2) / tileSize);
+  mainPlayerIndexY = Math.floor((Math.round(mainPlayer.y) + mainPlayer.height) / tileSize);
   mainPlayerIndex = mainPlayerIndexX + mainPlayerIndexY * mapWidth;
   totalNumberOfNecessaryTiles = Math.floor((canvas.width / tileSize) * (canvas.height / tileSize)) * mapWidth;
   updateMap();
-  updateObjectBinaryTree();
   for (let i in PlayerList) {
     let player = PlayerList[i];
-    // for (let n in PlayerList) {
-    //   let otherPlayers = PlayerList[n];
-    //   if (player.id !== otherPlayers.id) {
-    //     if (player.y > otherPlayers.y) {
-    //       otherPlayers.draw();
-    //       player.draw();
-    //     }
-    //     if (player.y <= otherPlayers.y) {
-    //       player.draw();
-    //       otherPlayers.draw();
-    //     }
-    //   } else {
-    //     player.draw();
-    //   }
-    // }
-    if (player.id !== mainPlayer.id) {
-      if (player.y > mainPlayer.y) {
-        mainPlayer.draw();
-        player.draw();
-      } else if (player.y <= mainPlayer.y) {
-        player.draw();
-        mainPlayer.draw();
+    if (PlayerList.length > 1) {
+      if (player.id !== mainPlayer.id) {
+        if (player.y > mainPlayer.y) {
+          mainPlayer.draw();
+          player.draw();
+        }
+        if (player.y <= mainPlayer.y) {
+          player.draw();
+          mainPlayer.draw();
+        }
       }
-    } else if (player.id == mainPlayer.id) {
+    } else {
       mainPlayer.draw();
     }
   }
   updateObjects();
   drawTime();
+  for (let i = 0; i < mapJson.layers.length; i++) {
+    if (mapJson.layers[i].objects) {
+      get_object_looping_limiters(mapJson.layers[i].objects);
+    }
+  }
   let it = objectBinaryTree.findIter(objectBinaryTree.max());
   let item;
   while ((item = it.prev()) !== null) {
     item.draw;
   }
+  for (let i in PlayerList) {
+    let player = PlayerList[i];
+    player.drawAccesories();
+  }
+  actionLogic(mainPlayer);
   ctx.restore();
+  // }
 };
 
 let Game_loop = function () {
@@ -750,6 +797,37 @@ respawnBtn.onclick = function () {
   mainPlayer.respawn();
 };
 
+createNewWorldBtn.onclick = function () {
+  newWorldCreatorContainer.style.display = "flex";
+  worldSelectionContainer.style.display = "none";
+  // socket.emit("create new world");
+};
+
+mapPreviewBtn.onclick = function (e) {
+  e.preventDefault();
+  let loaderContainer = document.getElementById("loaderContainer");
+  loaderContainer.style.display = "flex";
+  // console.log(
+  // uploadMapInput.files
+  // mapObjectFilesInput.files[0].path,
+  // mapObjectImageFilesInput.files[0].path
+  // );
+  uploader.listenOnInput(document.getElementById("worldNameInput"));
+  uploader.listenOnInput(document.getElementById("uploadMapInput"));
+  uploader.listenOnInput(document.getElementById("mapObjectFilesInput"));
+  uploader.listenOnInput(document.getElementById("mapObjectImageFilesInput"));
+  socket.emit("show preview", {
+    worldNameInput: worldNameInput.value,
+    uploadMapInput: uploadMapInput.files,
+    mapObjectFilesInput: mapObjectFilesInput.files,
+    mapObjectImageFilesInput: mapObjectImageFilesInput.files,
+  });
+};
+
+submitWorld.onclick = function () {
+  socket.emit("create new world", worldNameInput.value, JSON.stringify(uploadMapInput.files[0]));
+};
+
 //Warning: End of Dom event handlers
 
 //Note: Socket.on's here
@@ -857,11 +935,44 @@ socket.on("Log in successful", function () {
   window.alert("Log in successful!");
   loggedIn = true;
   mainPlayer.loggedIn = true;
-  gameContainer.style.display = "block";
+  worldSelectionContainer.style.display = "flex";
   logInSignUpContainer.style.display = "none";
   mainPlayer.username = username;
   mainPlayer.email = email;
   sendIp();
+});
+
+socket.on("joined world", async function () {
+  //Explanation: Requests the server for the JSON to create the map
+  await fetch(`/warmap?worldName=${currentWorld}`)
+    .then((res) => res.json())
+    .then((data) => {
+      mapJson = data;
+    });
+
+  //Explanation: Requests the server for the JSON to create the templates for all the different objects
+  await fetch(`/objects?worldName=${currentWorld}`)
+    .then((res) => res.json())
+    .then((data) => {
+      objectJson = data;
+    });
+
+  worldSelected = true;
+  mainPlayer.currentWorld = currentWorld;
+  mainPlayer.worldSelected = true;
+  gameContainer.style.display = "block";
+  worldSelectionContainer.style.display = "none";
+});
+
+socket.on("world created", function () {
+  gameContainer.style.display = "block";
+  newWorldCreatorContainer.style.display = "none";
+});
+
+socket.on("world already exists", function () {
+  window.alert("World name already exists! Please choose a different name!");
+  loaderContainer.style.display = "none";
+  worldNameInput.focus();
 });
 
 socket.on("This player is already logged in", function () {
@@ -905,19 +1016,6 @@ socket.on("players updated info", function (playerData) {
       player.height = playerData.clipHeight;
       player.above = playerData.above;
       player.below = playerData.below;
-      while (
-        player.bulletList.length <= playerData.bulletList &&
-        // playerData.ammoLeft > 0 &&
-        // playerData.reloading == false &&
-        playerData.needsToReload == false
-      ) {
-        player.bulletList.push(
-          new Bullet({
-            shooter: player.id,
-            index: playerData.bulletList - 1,
-          })
-        );
-      }
     }
   });
 });
@@ -925,19 +1023,27 @@ socket.on("players updated info", function (playerData) {
 socket.on("bullets updated info", function (bulletInfo) {
   for (let i in PlayerList) {
     let player = PlayerList[i];
-    if (
-      player.id == bulletInfo.bulletShooter &&
-      player.bulletList.length > 0 &&
-      player.ammoLeft > 0 &&
-      player.bulletList[player.bulletList.length - 1].index == bulletInfo.index
-    ) {
-      player.bulletList[player.bulletList.length - 1].setValues(
-        bulletInfo.bulletX,
-        bulletInfo.bulletY,
-        bulletInfo.bulletSubstitute,
-        bulletInfo.id,
-        bulletInfo.direction
+    while (player.bulletList.length <= bulletInfo.bulletList && bulletInfo.needsToReload == false) {
+      player.bulletList.push(
+        new Bullet({
+          shooter: player.id,
+          index: bulletInfo.index,
+        })
       );
+      if (
+        player.id == bulletInfo.bulletShooter &&
+        player.bulletList.length > 0 &&
+        player.ammoLeft > 0 &&
+        player.bulletList[player.bulletList.length - 1].index == bulletInfo.index
+      ) {
+        player.bulletList[player.bulletList.length - 1].setValues(
+          bulletInfo.bulletX,
+          bulletInfo.bulletY,
+          bulletInfo.bulletSubstitute,
+          bulletInfo.id,
+          bulletInfo.direction
+        );
+      }
     }
   }
 });
@@ -978,7 +1084,7 @@ socket.on("other player", function (them) {
 
 socket.on("Match starting", function () {
   if (loggedIn) {
-    window.alert("Match starting");
+    // window.alert("Match starting");
     // socket.emit("send past winners");
     mainPlayer.score = 0;
     mainPlayer.health = 100;
@@ -992,6 +1098,63 @@ socket.on("Match starting", function () {
     });
     sendPlayerInfo();
     allowPvp = true;
+  }
+});
+
+socket.on("world data", function (worldData, playerList) {
+  removeElementsByClass("worldRow");
+
+  let worldNumberOfPlayers;
+  let worldPlayerList;
+
+  let getPlayerListOfWorld = function (sockets, players) {
+    for (let i = 0; i < players.length; i++) {
+      let player = players[i];
+      for (let u in sockets) {
+        if (player.id == u) {
+          return player.username;
+        }
+      }
+    }
+  };
+
+  for (let i in worldData) {
+    let name = i;
+    worldNumberOfPlayers = worldData[i].length - 1;
+    worldPlayerList = getPlayerListOfWorld(worldData[i].sockets, playerList);
+
+    let worldSelectorRow = document.createElement("tr");
+    worldSelectionTableBody.appendChild(worldSelectorRow);
+    worldSelectorRow.classList.add("worldRow");
+
+    let worldSelectorNameTd = document.createElement("td");
+    worldSelectorNameTd.classList.add("worldName");
+    worldSelectorRow.appendChild(worldSelectorNameTd);
+
+    let worldSelectorBtn = document.createElement("button");
+    worldSelectorBtn.classList.add("selectWorldBtn");
+    worldSelectorNameTd.appendChild(worldSelectorBtn);
+    let worldSelectorWorldName = document.createTextNode(name);
+    worldSelectorBtn.appendChild(worldSelectorWorldName);
+    worldSelectorBtn.onclick = function (e) {
+      currentWorld = e.srcElement.innerText.replaceAll(" ", "_");
+      console.log(currentWorld);
+      socket.emit("join this world", `${currentWorld}`.toLowerCase());
+    };
+
+    let worldSelectorNumOfPlayersTd = document.createElement("td");
+    worldSelectorNumOfPlayersTd.classList.add("worldNumberOfPlayers");
+    worldSelectorRow.appendChild(worldSelectorNumOfPlayersTd);
+
+    let worldSelectorNumOfPlayers = document.createTextNode(worldNumberOfPlayers);
+    worldSelectorNumOfPlayersTd.appendChild(worldSelectorNumOfPlayers);
+
+    let worldSelectorListOfPlayersTd = document.createElement("td");
+    worldSelectorListOfPlayersTd.classList.add("worldListOfPlayers");
+
+    let worldSelectorListOfPlayers = document.createTextNode(worldPlayerList);
+    worldSelectorListOfPlayersTd.appendChild(worldSelectorListOfPlayers);
+    worldSelectorRow.appendChild(worldSelectorListOfPlayers);
   }
 });
 
@@ -1011,7 +1174,7 @@ socket.on("current time2", function (time) {
 
 socket.on("Match finished", function () {
   if (loggedIn) {
-    window.alert("Match finished");
+    // window.alert("Match finished");
     // socket.emit("send past winners");
     mainPlayer.score = 0;
     mainPlayer.health = 100;
@@ -1040,16 +1203,21 @@ socket.on("leaderboard scores", function (scores) {
   }
 });
 
-socket.on("someone disconnected", function (disconnector) {
+socket.on("someone disconnected", function (disconnector, serverOrWorld) {
   PlayerList.forEach((player) => {
     if (player.id == disconnector) {
-      leaderboardTable.childNodes.forEach((row) => {
-        if (row.childNodes[1].innerText == player.username) {
-          player.loggedIn = false;
-          PlayerList.splice(PlayerList.indexOf(player.id));
-          row.remove();
-        }
-      });
+      player.loggedIn = false;
+      if (serverOrWorld == "world") {
+        PlayerList.splice(PlayerList.indexOf(player.id));
+        leaderboardTable.childNodes.forEach((row) => {
+          if (row.childNodes[1].innerText == player.username) {
+            row.remove();
+          }
+        });
+      }
+      if (serverOrWorld == "server") {
+        player.paused = true;
+      }
     }
   });
 });
@@ -1065,6 +1233,11 @@ socket.on("new winner", function (winner) {
   pastWinnersLogic();
 });
 
+socket.on("needs name", function () {
+  window.alert("Worlds need a name");
+  worldNameInput.focus();
+});
+
 //Warning: End of Socket.on's
 
 //Explanation: Resizes canvas to match player's screen width and prevent cheating through zooming in or out
@@ -1073,33 +1246,9 @@ resizeCanvas();
 //Explanation: Initializes mainPlayer
 initPlayer();
 
-//Explanation: Requests the server for the JSON to create the map
-runXMLHttpRequest(
-  getMapJson,
-  (response) => {
-    if (response.readyState == 4 && response.status == 200) {
-      mapJson = JSON.parse(response.responseText);
-    }
-  },
-  "GET",
-  "/warmap"
-);
-
-//Explanation: Requests the server for the JSON to create the templates for all thendifferent objects
-runXMLHttpRequest(
-  getObjectJson,
-  (response) => {
-    if (response.readyState == 4 && response.status == 200) {
-      objectJson = JSON.parse(response.responseText);
-    }
-  },
-  "GET",
-  "/objects"
-);
-
 //Explanation: Runs the whole game, drawing and all. VERY IMPORTANT!!!!
 let run = () => {
-  if (loggedIn) {
+  if (worldSelected) {
     Game_loop();
     if (firstTime) {
       firstTime = false;

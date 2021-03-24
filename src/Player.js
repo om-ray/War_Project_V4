@@ -1,8 +1,9 @@
 import Bullet from "./Bullet";
 let canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d");
-let playerSpeed = 2;
+let playerSpeed = 5;
 let playerDamage = 1;
+let mapWidth;
 let Img = {};
 
 let Male1 = function () {
@@ -46,15 +47,6 @@ Math.radians = function (degrees) {
 
 let sprites = [Male1, Male2, Female1, Female2];
 let mapJson;
-let xmlhttp = new XMLHttpRequest();
-xmlhttp.onreadystatechange = function () {
-  if (this.readyState == 4 && this.status == 200) {
-    mapJson = JSON.parse(this.responseText);
-  }
-};
-xmlhttp.open("GET", "/warmap", true);
-xmlhttp.send();
-let mapWidth = mapJson?.layers[0]?.width;
 
 let Player = function (props) {
   let p = props;
@@ -68,7 +60,7 @@ let Player = function (props) {
   this.y = p.y;
   this.width = 32;
   this.height = 48;
-  this.speed = playerSpeed;
+  this.speed = { left: playerSpeed, right: playerSpeed, up: playerSpeed, down: playerSpeed };
   this.health = p.health;
   this.damage = playerDamage;
   this.keys = p.keys;
@@ -82,6 +74,9 @@ let Player = function (props) {
   this.sy = 0;
   this.loggedIn = false;
   this.afk = false;
+  this.worldSelected = false;
+  this.currentWorld;
+  this.paused = false;
   this.prevX;
   this.prevY;
   this.bulletList = [];
@@ -109,6 +104,18 @@ let Player = function (props) {
   this.lastDirection = "down";
   this.attacking = false;
   this.reloading = false;
+
+  if (this.worldSelected) {
+    let xmlhttp = new XMLHttpRequest();
+    xmlhttp.onreadystatechange = function () {
+      if (this.readyState == 4 && this.status == 200) {
+        mapJson = JSON.parse(this.responseText);
+      }
+    };
+    xmlhttp.open("GET", "/warmap", true);
+    xmlhttp.send(this.currentWorld);
+    mapWidth = mapJson?.layers[0]?.width;
+  }
 
   this.draw = () => {
     if (this.loggedIn == true && this.drawn == false) {
@@ -138,11 +145,23 @@ let Player = function (props) {
           this.height + 30
         );
       }
+      if (this.paused == true) {
+        ctx.fillStyle = "black";
+        ctx.font = "13px courier";
+        ctx.fillText("This player is paused", this.x - 50, this.y - 20);
+        ctx.drawImage(
+          Img.forcefield,
+          this.x - this.width / 1.4,
+          this.y - this.height / 4,
+          this.height + 30,
+          this.height + 30
+        );
+      }
       for (let i in this.bulletList) {
         this.bulletList[i].move();
         this.bulletList[i].draw();
       }
-      this.drawAccesories();
+      // this.drawAccesories();
       this.resetBulletlist();
       this.action();
       // this.drawn = true;
@@ -240,42 +259,36 @@ let Player = function (props) {
   };
 
   this.action = () => {
+    this.prevY = this.y;
+    this.prevX = this.x;
     if (this.direction.up && !this.collisionDirection.up) {
-      this.prevX = this.x;
-      this.prevY = this.y;
       this.sy = 144;
       this.sx += this.width;
-      this.y -= this.speed;
+      this.y -= this.speed.up;
       this.justRespawned = false;
       this.direction.down = false;
       // ctx.translate(0, this.speed);
     }
     if (this.direction.left && !this.collisionDirection.left) {
-      this.prevX = this.x;
-      this.prevY = this.y;
       this.sy = 48;
       this.sx += this.width;
-      this.x -= this.speed;
+      this.x -= this.speed.left;
       this.justRespawned = false;
       this.direction.right = false;
       // ctx.translate(this.speed, 0);
     }
     if (this.direction.down && !this.collisionDirection.down) {
-      this.prevX = this.x;
-      this.prevY = this.y;
       this.sy = 0;
       this.sx += this.width;
-      this.y += this.speed;
+      this.y += this.speed.down;
       this.justRespawned = false;
       this.direction.up = false;
       // ctx.translate(0, -this.speed);
     }
     if (this.direction.right && !this.collisionDirection.right) {
-      this.prevX = this.x;
-      this.prevY = this.y;
       this.sy = 96;
       this.sx += this.width;
-      this.x += this.speed;
+      this.x += this.speed.right;
       this.justRespawned = false;
       this.direction.left = false;
       // ctx.translate(-this.speed, 0);
@@ -315,6 +328,10 @@ let Player = function (props) {
     this.direction.right = false;
     this.direction.left = false;
     this.justRespawned = true;
+  };
+
+  this.resetSpeed = function () {
+    this.speed = { left: playerSpeed, right: playerSpeed, up: playerSpeed, down: playerSpeed };
   };
 
   this.update = function () {

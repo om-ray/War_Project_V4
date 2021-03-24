@@ -1,6 +1,6 @@
 let canvas = document.getElementById("canvas");
 let ctx = canvas.getContext("2d");
-let bulletSpeed = 10;
+let bulletSpeed = 20;
 let width = 16;
 let height = 16;
 let bulletImage = new Image();

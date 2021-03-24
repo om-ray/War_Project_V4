@@ -2,20 +2,33 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0"
+    />
     <link rel="preconnect" href="https://fonts.gstatic.com" />
     <link href="https://fonts.googleapis.com/css2?family=Megrim&display=swap" rel="stylesheet" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap"
+      rel="stylesheet"
+    />
     <link rel="apple-touch-icon" sizes="180x180" href="./images/favicon/apple-touch-icon.png" />
     <link rel="icon" type="image/png" sizes="32x32" href="./images/favicon/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="./images/favicon/favicon-16x16.png" />
     <link rel="stylesheet" href="style.css" />
     <title>War 4</title>
   </head>
+
   <body>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.3.1/socket.io.js"></script>
+    <script src="/siofu/client.js"></script>
     <script>
       // var socket = io.connect("http://localhost:3000");
     </script>
+    <div id="loaderContainer" class="loaderContainer">
+      <div id="placeholderLoader" class="loader"></div>
+    </div>
     <div id="logInSignUpContainer">
       <div class="stars"></div>
       <div class="twinkling"></div>
@@ -43,13 +56,190 @@
         </div>
         <div id="verificationContentContainer">
           <h4 id="verifyYourEmailText">
-            Go to the email that you signed up with and check for an email from "War", then copy the code and paste it in the input box below
+            Go to the email that you signed up with and check for an email from "War", then copy the code and
+            paste it in the input box below
           </h4>
           <input type="number" id="verificationCodeInput" placeholder="Verification Code" />
           <button id="submitVerificationCodeBtn">Submit</button>
         </div>
       </div>
     </div>
+    <div id="worldSelectionContainer">
+      <div class="stars"></div>
+      <div class="twinkling"></div>
+      <div id="worldSelectorTitleContainer">
+        <h1 id="worldSelectorTitle">WorlD SelectoR</h1>
+      </div>
+      <table id="worldSelectorTableBody">
+        <tbody id="previousWorldSelectionTableBody">
+          <tr id="headerRow1">
+            <th id="worldSelectorTablePreviousWorldHeader">PreviouS WorlD</th>
+          </tr>
+          <tr class="prevWorldRow">
+            <td class="prevWorldName">StartinG WorlD</td>
+          </tr>
+        </tbody>
+        <tbody id="worldSelectionTableBody">
+          <tr id="headerRow">
+            <th id="worldSelectorTableWorldNameHeader" class="worldName">WorlD NamE</th>
+            <th id="worldSelectorTableNumberOfPlayersHeader" class="worldNumberOfPlayers">
+              NumbeR of PlayerS
+            </th>
+            <th id="worldSelectorTableListOfPlayersHeader" class="worldListOfPlayers">LisT of PlayerS</th>
+          </tr>
+
+          <tr id="createNewWorldRow" class="createNewWorldRow">
+            <th id="createNewWorldBtnContainer">
+              <button id="createNewWorldBtn">
+                <span id="createNewWorldBtnPlus">+</span> CreatE NeW WorlD
+              </button>
+            </th>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="newWorldCreatorContainer">
+      <div class="stars"></div>
+      <div class="twinkling"></div>
+      <div id="worldCreatorTitleContainer">
+        <h1 id="worldCreatorTitle" class="megrim">WorlD CreatoR</h1>
+      </div>
+      <div id="worldInfoContainer">
+        <div id="uploadMapContainer">
+          <form id="mapInfoForm" method="POST" action="/uploadMapFiles" enctype="multipart/form-data">
+            <div id="worldNameInfoContainer">
+              <h3 id="worldNameLabel" class="megrim">WorlD NamE</h3>
+              <input
+                type="text"
+                id="worldNameInput"
+                name="worldName"
+                class="megrim"
+                placeholder="WorlD NamE"
+                required
+              />
+            </div>
+            <h3 id="uploadMapLabel" class="megrim">UploaD MaP</h3>
+            <label id="uploadMapBtn">
+              <svg
+                width="129"
+                height="129"
+                viewBox="0 0 129 129"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M127.717 85.5724V113.669C127.717 117.395 126.237 120.968 123.603 123.603C120.968 126.237 117.395 127.717 113.669 127.717H15.331C11.6051 127.717 8.03189 126.237 5.39732 123.603C2.76275 120.968 1.28267 117.395 1.28267 113.669V85.5724"
+                  stroke="white"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M99.6207 36.4034L64.5 1.28265L29.3793 36.4034"
+                  stroke="white"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M64.5 1.28265V85.5724"
+                  stroke="white"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <input type="file" id="uploadMapInput" name="uploadMapInput" />
+            </label>
+            <h3 class="megrim" id="mapObjectFilesInputLabelText">Upload your object file</h3>
+            <label for="mapObjectFilesInput" id="mapObjectFilesInputLabel" class="megrim">
+              <svg
+                width="129"
+                height="129"
+                viewBox="0 0 129 129"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M127.717 85.5724V113.669C127.717 117.395 126.237 120.968 123.603 123.603C120.968 126.237 117.395 127.717 113.669 127.717H15.331C11.6051 127.717 8.03189 126.237 5.39732 123.603C2.76275 120.968 1.28267 117.395 1.28267 113.669V85.5724"
+                  stroke="white"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M99.6207 36.4034L64.5 1.28265L29.3793 36.4034"
+                  stroke="white"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M64.5 1.28265V85.5724"
+                  stroke="white"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <input type="file" id="mapObjectFilesInput" name="mapObjectFilesInput" />
+            </label>
+            <h3 class="megrim" id="mapObjectImageFilesInputLabelText">Upload your object image files</h3>
+            <label for="mapObjectImageFilesInput" id="mapObjectImageFilesInputLabel" class="megrim">
+              <svg
+                width="129"
+                height="129"
+                viewBox="0 0 129 129"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <path
+                  d="M127.717 85.5724V113.669C127.717 117.395 126.237 120.968 123.603 123.603C120.968 126.237 117.395 127.717 113.669 127.717H15.331C11.6051 127.717 8.03189 126.237 5.39732 123.603C2.76275 120.968 1.28267 117.395 1.28267 113.669V85.5724"
+                  stroke="white"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M99.6207 36.4034L64.5 1.28265L29.3793 36.4034"
+                  stroke="white"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+                <path
+                  d="M64.5 1.28265V85.5724"
+                  stroke="white"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                />
+              </svg>
+              <input
+                type="file"
+                id="mapObjectImageFilesInput"
+                name="mapObjectImageFilesInput"
+                multiple="true"
+              />
+            </label>
+            <button type="submit" id="mapPreviewBtn" action="/uploadMapFiles" class="megrim btnSec">
+              SubmiT
+            </button>
+          </form>
+        </div>
+      </div>
+      <div id="mapPreviewContainer">
+        <div id="mapPreviewTitleContainer">
+          <h3 id="mapPreviewTitle" class="megrim" style="width: fit-content; float: left">PrevieW</h3>
+        </div>
+        <div id="mapPreview">
+          <canvas id="mapPreviewCanvas"></canvas>
+        </div>
+      </div>
+      <button id="submitWorld" class="megrim btnSec">CreatE WorlD</button>
+    </div>
+
     <div id="gameContainer" style="display: none; overflow: hidden">
       <button id="leaderboardBtn">Leaderboard</button>
       <button id="respawnBtn">respawn</button>

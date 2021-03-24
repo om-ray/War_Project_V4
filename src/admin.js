@@ -14,17 +14,19 @@ refreshButton.onclick = function () {
 socket.on("Here is the data", function (data) {
   console.log("data is here");
   adminPanelBody.innerHTML = "";
-  for (let i in data) {
+  for (let i = 0; i < data.length; i++) {
     let arr = data[i];
-    addToLeaderboard(
-      arr.Username,
-      arr.Email,
-      arr.IP,
-      `${arr.Geolocation.city}, ${arr.Geolocation.region}, ${arr.Geolocation.country}, ${arr.Geolocation.continent}`,
-      arr.Health,
-      arr.Wins,
-      arr.Losses
-    );
+    if (arr.IP !== null) {
+      addToLeaderboard(
+        arr.Username,
+        arr.Email,
+        arr.IP,
+        `${arr.Geolocation?.city}, ${arr.Geolocation?.region}, ${arr.Geolocation?.country}, ${arr.Geolocation?.continent}`,
+        arr.Health,
+        arr.Wins,
+        arr.Losses
+      );
+    }
   }
 });
 

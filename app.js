@@ -1,15 +1,28 @@
 let express = require("express");
-let app = express();
+let uploader = require("socketio-file-upload");
+let app = express().use(uploader.router);
+let fs = require("fs");
 let server = require("http").createServer(app);
 let io = require("socket.io")(server);
 let mongoose = require("mongoose");
 let PlayerModel = require("./Server/Schemas/PlayerModel");
 let ProgressModel = require("./Server/Schemas/ProgressSchema");
+let WorldModel = require("./Server/Schemas/WorldSchema");
 let nodemailer = require("nodemailer");
+let mv = require("mv");
+let url = require("url");
 let fetch = require("node-fetch");
-let { RBTree, BinTree } = require("bintrees");
 let MONGODB_URI =
   "mongodb+srv://123om123:crbBhQirzfyonefb@cluster0.c3yq9.mongodb.net/test?retryWrites=true&w=majority";
+let options = {
+  server: {
+    socketOptions: {
+      socketTimeoutMS: 100000,
+      connectTimeoutMS: 100000,
+    },
+  },
+};
+let adminPanel;
 
 mongoose.connect(MONGODB_URI, {
   useNewUrlParser: true,
@@ -25,17 +38,23 @@ app.get("/", function (req, res) {
 });
 
 app.get("/warmap", function (req, res) {
-  res.sendFile(__dirname + "/src/Assets/Maps/test-small.json");
+  let worldName = url.parse(req.url, true).query.worldName;
+  res.sendFile(__dirname + `/src/Assets/${worldName}/Maps/test-small.json`);
 });
 
 app.get("/objects", function (req, res) {
-  res.sendFile(__dirname + "/src/Assets/Maps/objects.json");
+  let worldName = url.parse(req.url, true).query.worldName;
+  res.sendFile(__dirname + `/src/Assets/${worldName}/Objects/objects.json`);
 });
 
 app.use("/dist", express.static(__dirname + "/dist"));
 app.use("/admin", express.static(__dirname + "/src/Admin.html"));
 app.use("/admin.js", express.static(__dirname + "/src/admin.js"));
 app.use("/images", express.static(__dirname + "/images"));
+app.use("/objectImageFiles", (req, res) => {
+  let worldName = url.parse(req.url, true).query.worldName;
+  express.static(__dirname + `/src/Assets/${worldName}/Object_Image_Files`);
+});
 app.use("/node_modules", express.static(__dirname + "/node_modules"));
 app.use("/style.css", express.static(__dirname + "/style.css"));
 app.use("/adminStyle.css", express.static(__dirname + "/adminStyle.css"));
@@ -190,20 +209,30 @@ let sortArray = function (scoreArray) {
   scoreArray.sort((a, b) => b.score - a.score);
 };
 
-let ObjectBinaryTree = new RBTree((a, b) => {
-  if (a.y < b.y) {
-    return 1;
+let worldArray = [{ name: "starting world", listOfPlayers: [] }];
+
+let findWorldPlayerIsIn = function (id) {
+  let socketId = id;
+  let res;
+  for (let i = 0; i < worldArray.length; i++) {
+    let world = worldArray[i];
+    if (
+      world.listOfPlayers.findIndex((el) => {
+        return el.socketId == socketId;
+      })
+    ) {
+      res = i;
+    }
   }
-  if (a.y == b.y) {
-    return 0;
-  }
-  if (a.y > b.y) {
-    return -1;
-  }
-});
+  return res;
+};
 
 io.on("connection", function (socket) {
+  let fileUploader = new uploader();
+  fileUploader.dir = "./src/Files_to_upload/";
+  fileUploader.listen(socket);
   console.log(socket.id + " joined the server on " + new Date().toLocaleString());
+  io.emit("world data", io.sockets.adapter.rooms, playerList);
 
   socket.on("Sign up attempt", function (signUpInfo) {
     let playerData = {
@@ -288,7 +317,11 @@ io.on("connection", function (socket) {
             console.log("account is verified", new Date().toLocaleString());
             if (!res.checkLoggedIn()) {
               console.log("account is not logged in", new Date().toLocaleString());
+              socket.leaveAll();
+              socket.join(worldArray[0].name);
+              console.log(io.sockets.adapter.rooms);
               socket.emit("Log in successful");
+              worldArray[0].listOfPlayers.push(socket.id);
               for (let i in playerList) {
                 if (playerList[i].id == socket.id) {
                   playerList[i].username = logInInfo.username;
@@ -358,15 +391,17 @@ io.on("connection", function (socket) {
       username: null,
       score: 0,
     });
+
     socketList.push({
       socketId: socket.id,
       id: player.id,
     });
+
     socket.broadcast.emit("New connection", { player: player, connector: socket.id });
   });
 
   socket.on("updated player info", function (playerInfo) {
-    socket.broadcast.emit("players updated info", playerInfo);
+    socket.to(worldArray[findWorldPlayerIsIn(socket.id)].name).emit("players updated info", playerInfo);
     PlayerModel.updateOne(
       { Username: playerInfo.username },
       { $set: { Health: playerInfo.health, Score: playerInfo.score, Bullets: playerInfo.bulletList } },
@@ -375,7 +410,7 @@ io.on("connection", function (socket) {
   });
 
   socket.on("updated bullet info", function (bulletInfo) {
-    socket.broadcast.emit("bullets updated info", bulletInfo);
+    socket.to(worldArray[findWorldPlayerIsIn(socket.id)].name).emit("bullets updated info", bulletInfo);
   });
 
   socket.on("me", function (data) {
@@ -383,7 +418,7 @@ io.on("connection", function (socket) {
   });
 
   socket.on("player health", function (health, username, id) {
-    socket.broadcast.emit("updated player health", health, id);
+    socket.to(worldArray[findWorldPlayerIsIn(socket.id)].name).emit("updated player health", health, id);
     PlayerModel.updateOne(
       { Username: username },
       { $set: { Health: health } },
@@ -392,7 +427,9 @@ io.on("connection", function (socket) {
   });
 
   socket.on("Player health", function (data) {
-    socket.broadcast.emit("updated player health", data.health, data.id);
+    socket
+      .to(worldArray[findWorldPlayerIsIn(socket.id)].name)
+      .emit("updated player health", data.health, data.id);
     PlayerModel.updateOne(
       { Username: data.username },
       { $set: { Health: data.health } },
@@ -401,18 +438,14 @@ io.on("connection", function (socket) {
   });
 
   socket.on("score went up", function (score, username) {
-    socket.broadcast.emit("updated player score", username, score + 1);
-    console.log(scoreArray, "1");
+    socket
+      .to(worldArray[findWorldPlayerIsIn(socket.id)].name)
+      .emit("updated player score", username, score + 1);
     scoreArray.push({ username: username, score: score + 1 });
-    console.log(scoreArray, "2");
     removeDupes(scoreArray);
-    console.log(scoreArray, "3");
     sortArray(scoreArray);
-    console.log(scoreArray, "4");
     removeDupes(scoreArray);
-    console.log(scoreArray, "5");
     sortArray(scoreArray);
-    console.log(scoreArray, "6");
     PlayerModel.updateOne(
       { Username: username },
       { $set: { Score: score + 1 } },
@@ -457,6 +490,10 @@ io.on("connection", function (socket) {
   });
 
   socket.on("gimme all the data", function () {
+    adminPanel = socket;
+    socket.join(worldArray[0].name);
+    worldArray[0].listOfPlayers.push(socket.id);
+
     PlayerModel.find({}, (err, res) => {
       if (res) {
         socket.emit("Here is the data", res);
@@ -468,6 +505,161 @@ io.on("connection", function (socket) {
         console.error(err);
       }
     });
+  });
+
+  socket.on("show preview", async function (data) {
+    if (data) {
+      let files;
+      await fileUploader.on("saved", function (event) {
+        files = event.file;
+        console.log(event.file);
+      });
+
+      // console.log(files);
+
+      let body = data;
+      let worldName = body.worldNameInput;
+      if (fs.existsSync(`./src/Assets/${worldName}`)) {
+        socket.emit("world already exists");
+      } else {
+        fs.mkdir(`./src/Assets/${worldName}`, { recursive: false }, (err) => {
+          if (err) {
+            console.error(err);
+          } else {
+            fs.mkdir(`./src/Assets/${worldName}/Maps`, { recursive: false }, (err) => {
+              if (err) {
+                console.error(err);
+              }
+            });
+            fs.mkdir(`./src/Assets/${worldName}/Objects`, { recursive: false }, (err) => {
+              if (err) {
+                console.error(err);
+              }
+            });
+            fs.mkdir(`./src/Assets/${worldName}/Object_Image_Files`, { recursive: false }, (err) => {
+              if (err) {
+                console.error(err);
+              }
+            });
+            console.log(`Folder for world: ${worldName} created`);
+          }
+        });
+      }
+      let mapFile = body.uploadMapInput[0];
+      let mapFileName = mapFile.name;
+      let objectFile = body.mapObjectFilesInput[0];
+      let objectFileName = objectFile.name;
+      let objectImageFiles;
+      let objectImageFilesName;
+      for (let i = 0; i < body.mapObjectImageFilesInput.length; i++) {
+        let image = body.mapObjectImageFilesInput[i];
+        objectImageFiles = image;
+        objectImageFilesName = objectImageFiles?.name;
+        mv(
+          `./src/Files_to_upload/${objectImageFilesName}`,
+          `./src/Assets/${worldName}/Object_Image_Files/${objectImageFilesName}`,
+          { mkdirp: true },
+          (err) => {
+            if (err) {
+              console.error(err);
+            } else {
+              console.log(
+                `Uploaded: ${objectImageFilesName} to: ./src/Assets/${worldName}/Object_Image_Files/`
+              );
+            }
+          }
+        );
+      }
+      mv(
+        `./src/Files_to_upload/${mapFileName}`,
+        `./src/Assets/${worldName}/Maps/${mapFileName}`,
+        { mkdirp: true },
+        (err) => {
+          if (err) {
+            console.error(err);
+          } else {
+            console.log(`Uploaded: ${mapFileName} to: ./src/Assets/${worldName}/Maps/`);
+          }
+        }
+      );
+      mv(
+        `./src/Files_to_upload/${objectFileName}`,
+        `./src/Assets/${worldName}/Objects/${objectFileName}`,
+        { mkdirp: true },
+        (err) => {
+          if (err) {
+            console.error(err);
+          } else {
+            console.log(`Uploaded: ${objectFileName} to: ./src/Assets/${worldName}/Objects/`);
+          }
+        }
+      );
+    }
+  });
+
+  socket.on("create new world", function (name, mapFile) {
+    if (name) {
+      let worldName = `${name} + ${worldArray.length}`;
+      let id = socket.id;
+      socket.to(worldArray[findWorldPlayerIsIn(socket.id)].name).emit("someone disconnected", id, "world");
+      worldArray[findWorldPlayerIsIn(id)].listOfPlayers.splice(
+        worldArray[findWorldPlayerIsIn(id)].listOfPlayers.findIndex((el) => {
+          return el == id;
+        }),
+        1
+      );
+      adminPanel.join(worldArray[findWorldPlayerIsIn(socket.id)].name);
+      socket.leaveAll();
+      adminPanel.join(worldName);
+      socket.join(worldName);
+      worldArray.push({ name: worldName, listOfPlayers: [] });
+      worldArray[
+        worldArray.findIndex((el) => {
+          return el.name == worldName;
+        })
+      ].listOfPlayers.push(id);
+      console.log(io.sockets.adapter.rooms);
+      socket.emit("world created");
+    } else {
+      socket.emit("needs name");
+    }
+  });
+
+  socket.on("join this world", function (name) {
+    name = name.toString().replace("_", " ");
+    let worldName = name;
+    let id = socket.id;
+    socket.to(worldArray[findWorldPlayerIsIn(socket.id)].name).emit("someone disconnected", id);
+    worldArray[findWorldPlayerIsIn(id)].listOfPlayers.splice(
+      worldArray[findWorldPlayerIsIn(id)].listOfPlayers.findIndex((el) => {
+        return el == id;
+      }),
+      1
+    );
+    adminPanel.join(worldArray[findWorldPlayerIsIn(socket.id)].name);
+    socket.leaveAll();
+    adminPanel.join(worldName);
+    socket.join(worldName);
+    worldArray.push({ name: worldName, listOfPlayers: [] });
+    worldArray[
+      worldArray.findIndex((el) => {
+        return el.name == worldName;
+      })
+    ].listOfPlayers.push(id);
+    console.log(io.sockets.adapter.rooms);
+    socket.emit("joined world");
+  });
+
+  socket.on("disconnecting", function () {
+    let id = socket.id;
+    let worldPlayerIsIn = worldArray[findWorldPlayerIsIn(id)];
+    console.log(worldArray);
+    worldPlayerIsIn.listOfPlayers.splice(
+      worldPlayerIsIn.listOfPlayers.findIndex((el) => {
+        return el == id;
+      }),
+      1
+    );
   });
 
   socket.on("disconnect", function () {
@@ -490,8 +682,8 @@ io.on("connection", function (socket) {
     for (let i in socketList) {
       if (socketList[i].socketId == socket.id) {
         let id = socketList[i].id;
-        socket.broadcast.emit("someone disconnected", id);
         socketList.splice(i, 1);
+        socket.to(worldArray[findWorldPlayerIsIn(socket.id)].name).emit("someone disconnected", id, "server");
       }
     }
     socket.disconnect(true);
@@ -502,18 +694,21 @@ setInterval(async () => {
   if (matchIsStarting == true) {
     io.emit("Match starting");
   }
+
   if (betweenMatches == false) {
     io.emit("current time", {
       minutes: current_minutes,
       seconds: current_seconds,
     });
   }
+
   if (betweenMatches == true) {
     io.emit("current time2", {
       minutes: current_minutes2,
       seconds: current_seconds2,
     });
   }
+
   if (matchIsEnding == true) {
     console.log("match finished");
     matchIsEnding = false;
@@ -596,3 +791,10 @@ setInterval(async () => {
     timeArray = [];
   }
 }, 10);
+
+setInterval(() => {
+  io.emit("world data", io.sockets.adapter.rooms, playerList);
+  if (Object.keys(io.sockets.adapter.rooms)[0] !== "starting world") {
+    delete io.sockets.adapter.rooms[Object.keys(io.sockets.adapter.rooms)[0]];
+  }
+}, 1000);

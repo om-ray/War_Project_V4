@@ -134,8 +134,322 @@ body {
   padding: 5px;
 }
 
+#worldSelectionContainer {
+  display: none;
+  z-index: 10;
+  height: 100vh;
+  width: 100vw;
+  padding: 0;
+  font-family: "megrim";
+  flex-direction: column;
+  text-align: center;
+  align-items: center;
+  font-size: 20px;
+}
+
+#worldSelectorTitle {
+  font-family: "Megrim";
+  font-size: 64px;
+}
+
+#worldSelectorTitleContainer {
+  font-family: "megrim";
+  margin: 60px 0px 60px 0px;
+  z-index: 10;
+}
+
+#worldSelectorTableBody {
+  display: flex;
+  z-index: 10;
+  font-family: "megrim";
+  width: 90%;
+  height: calc(85% - 60px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0px 15px 15px 15px;
+  border: 1px solid black;
+  background-color: rgba(196, 196, 196, 0.3);
+  opacity: 0.7;
+  border-radius: 100px;
+}
+
+#worldSelectorTableBody > * {
+  font-family: "megrim";
+}
+
+#worldSelectionTableBody,
+#worldSelectionTableBody > * {
+  width: 100%;
+}
+
+#worldSelectionTableBody {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+#worldSelectorTablePreviousWorldHeader {
+  border-radius: 0px;
+  width: 100%;
+}
+
+#previousWorldSelectionTableBody {
+  max-width: 300px;
+  border-right: black 1px solid;
+}
+
+#headerRow1 {
+  max-width: 300px;
+  padding: 20px;
+  font-size: 20px;
+  border-radius: 50px 50px 0px 0px;
+  margin: 10px 0px 0px 5px;
+  border-bottom: black 1px solid;
+}
+
+.prevWorldRow {
+  display: flex;
+  align-items: center;
+  text-align: center;
+  max-width: 300px;
+  height: 65px;
+  margin: 0px;
+}
+
+.prevWorldName {
+  max-width: 300px;
+  margin: 0px;
+}
+
+#headerRow {
+  display: flex;
+  justify-content: space-around;
+  padding: 20px;
+  font-size: 20px;
+  margin: 10px 5px 0px 0px;
+  border-radius: 50px 50px 0px 0px;
+  border-bottom: black 1px solid;
+}
+
+#createNewWorldBtnContainer {
+  background-color: rgba(0, 0, 0, 0) !important;
+  border-radius: 0px;
+}
+
+#createNewWorldBtn,
+.favouriteBtn,
+.selectWorldBtn,
+#selectWorldBtn {
+  background-color: rgba(0, 0, 0, 0) !important;
+  border: none;
+  font-size: 20px;
+}
+
+.selectWorldBtn,
+#selectWorldBtn {
+  width: 100%;
+  height: 100%;
+  padding: 0px;
+}
+
+#createNewWorldBtnPlus {
+  width: fit-content;
+  margin: 0px 5px;
+  font-family: "Montserrat";
+  font-size: 20px;
+}
+
+#newWorldCreatorContainer {
+  display: none;
+  font-family: "megrim";
+  width: 100%;
+  height: 100vh;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+#worldCreatorTitleContainer,
+#worldInfoContainer {
+  position: absolute;
+  font-family: "megrim";
+}
+
+#uploadMapContainer {
+  margin: 20px 0px;
+}
+
+#uploadMapBtn,
+#uploadMapBtn > svg,
+#mapObjectFilesInputLabel,
+#mapObjectFilesInputLabel > svg,
+#mapObjectImageFilesInputLabel,
+#mapObjectImageFilesInputLabel > svg {
+  margin: 20px 0px;
+  cursor: pointer;
+}
+
+input[type="file"] {
+  opacity: 0;
+  margin: 0px;
+  width: 0px;
+  height: 0px;
+}
+
+#mapInfoForm {
+  position: absolute;
+  bottom: -700px;
+  height: 90vh;
+  margin: 0px;
+}
+
+#worldCreatorTitleContainer,
+#worldInfoContainer,
+#worldCreatorTitleContainer > *,
+#worldInfoContainer > * {
+  z-index: 10;
+  font-family: "Megrim";
+}
+
+#worldCreatorTitleContainer {
+  position: absolute;
+  top: 60px;
+  margin: 0px auto;
+}
+
+#mapPreviewTitle {
+  position: absolute;
+  bottom: 0;
+  width: 5vw;
+  font-size: 30px;
+}
+
+#worldCreatorTitle {
+  font-size: 64px !important;
+}
+
+#mapPreviewContainer {
+  z-index: 10;
+  position: absolute;
+  bottom: 5%;
+  left: 25%;
+}
+
+#mapPreview {
+  margin: auto;
+  width: 60vw;
+  height: 70%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(255, 255, 255, 0.15);
+  border: white 1px solid;
+}
+
+#submitWorld {
+  position: absolute;
+  bottom: 1vh;
+  right: 1vw;
+  width: 10vw;
+  z-index: 10;
+}
+
+.btnSec {
+  background-color: rgba(255, 255, 255, 0.15);
+  border: white 1px solid;
+  border-radius: 0px;
+  font-size: 20px;
+}
+
+.btnSec:disabled {
+  filter: opacity(50%);
+}
+
+.btnSec:hover:enabled {
+  filter: brightness(75%);
+  transform: scale(1.2, 1.2);
+}
+
+#mapPreviewTitleContainer {
+  position: relative;
+  width: 60vw;
+  height: 50px;
+}
+
+.loaderContainer{
+  display: none;
+  z-index: 10000;
+  justify-content: center;
+  align-items: center;
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0.80);
+}
+
+#worldInfoContainer {
+  font-size: 20px;
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  align-items: flex-start;
+  left: 2vw;
+  top: 200px;
+  height: 40%;
+  width: 20%;
+}
+
+#worldNameInput {
+  margin: 10px 0px;
+}
+
+#worldNameInfoContainer {
+  position: absolute;
+  top: -80px;
+}
+
+.megrim {
+  font-family: "megrim";
+}
+
+.worldRow,
+.createNewWorldRow {
+  border-bottom: black 1px solid;
+  border-radius: 0px;
+  height: 65px;
+  margin: 0px;
+  display: flex;
+  align-items: center;
+  text-align: center;
+  font-size: 20px;
+}
+
+.worldName {
+  width: 50%;
+  padding: 0px;
+}
+
+.worldNumberOfPlayers {
+  width: 25%;
+  padding: 0px;
+}
+
+.worldListOfPlayers {
+  width: 25%;
+  padding: 0px;
+}
+
+#worldSelectorTableNumberOfPlayersHeader {
+  border-left: black solid 1px;
+  border-right: black solid 1px;
+  border-radius: 0px;
+}
+
 tr {
   display: flex;
+  font-family: inherit;
   justify-content: space-evenly;
   border-radius: 20px;
   width: 500px;
@@ -144,6 +458,7 @@ tr {
 
 th {
   display: flex;
+  font-family: inherit;
   justify-content: space-evenly;
   border-radius: 20px;
   width: 100%;
@@ -151,16 +466,31 @@ th {
 
 td {
   display: flex;
+  font-family: inherit;
   justify-content: space-evenly;
   border-radius: 20px;
   width: 100%;
 }
 
-tr:nth-child(even) {
+tr > * {
+  font-family: inherit;
+}
+
+th > * {
+  font-family: inherit;
+}
+
+td > * {
+  font-family: inherit;
+}
+
+#leaderboardContainer > tr:nth-child(even),
+#pastWinnersContainer > tr:nth-child(even) {
   background-color: #3d3d3d;
 }
 
-tr:nth-child(odd:not(1)) {
+#leaderboardContainer > tr:nth-child(odd:not(1)),
+#pastWinnersContainer > tr:nth-child(odd:not(1)) {
   background-color: #616161;
 }
 
@@ -344,14 +674,14 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
-button:hover {
+button:hover:not(.btnSec) {
   outline: none;
   cursor: pointer;
   filter: invert(100%);
   transform: scale(1.2, 1.2);
 }
 
-button:focus {
+button:focus:not(.btnSec) {
   outline: none;
   color: rgb(255, 255, 255);
   transform: scale(1.2, 1.2);
@@ -366,6 +696,14 @@ button:focus {
   width: 30px;
   height: 30px;
   animation: spin 1s linear infinite;
+}
+
+#placeholderLoader{
+  display: inherit;
+  width: 100px;
+  height: 100px;
+  border: 10px solid #f3f3f3;
+  border-top: 10px solid #3498db;
 }
 
 @keyframes spin {
@@ -459,7 +797,7 @@ button:focus {
 
 .stars,
 .twinkling {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
@@ -475,7 +813,8 @@ button:focus {
 }
 
 .twinkling {
-  background: transparent url(http://www.script-tutorials.com/demos/360/images/twinkling.png) repeat top center;
+  background: transparent url(http://www.script-tutorials.com/demos/360/images/twinkling.png) repeat top
+    center;
   z-index: 1;
   -moz-animation: move-twink-back 200s linear infinite;
   -ms-animation: move-twink-back 200s linear infinite;

@@ -17,6 +17,11 @@ let PlayerSchema = new Schema({
   Losses: Number,
   Ties: Number,
   Bullets: Number,
+  WorldsCreated: Number,
+  WorldsOwned: Number,
+  WorldsVisited: Number,
+  CurrentWorld: String,
+  Worlds: Array,
   CreatedAt: {
     type: String,
     default: new Date(),
