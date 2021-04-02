@@ -1,6 +1,5 @@
 let express = require("express");
-let uploader = require("socketio-file-upload");
-let app = express().use(uploader.router);
+let app = express();
 let fs = require("fs");
 let server = require("http").createServer(app);
 let io = require("socket.io")(server);
@@ -9,7 +8,6 @@ let PlayerModel = require("./Server/Schemas/PlayerModel");
 let ProgressModel = require("./Server/Schemas/ProgressSchema");
 let WorldModel = require("./Server/Schemas/WorldSchema");
 let nodemailer = require("nodemailer");
-let mv = require("mv");
 let url = require("url");
 let fetch = require("node-fetch");
 let MONGODB_URI =
@@ -228,9 +226,6 @@ let findWorldPlayerIsIn = function (id) {
 };
 
 io.on("connection", function (socket) {
-  let fileUploader = new uploader();
-  fileUploader.dir = "./src/Files_to_upload/";
-  fileUploader.listen(socket);
   console.log(socket.id + " joined the server on " + new Date().toLocaleString());
   io.emit("world data", io.sockets.adapter.rooms, playerList);
 
@@ -455,7 +450,7 @@ io.on("connection", function (socket) {
 
   socket.on("IP", function (data) {
     fetch(
-      `http://ip-api.com/json/${data.ip}?fields=status,message,continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,reverse,mobile,proxy,hosting,query`
+      `http://ip-api.com/json/${data.ip}?fields=status,data,continent,continentCode,country,countryCode,region,regionName,city,district,zip,lat,lon,timezone,offset,currency,isp,org,as,asname,reverse,mobile,proxy,hosting,query`
     )
       .then((results) => results.json())
       .then(function (res) {
@@ -507,16 +502,9 @@ io.on("connection", function (socket) {
     });
   });
 
-  socket.on("show preview", async function (data) {
+  socket.on("show preview", function (data) {
     if (data) {
-      let files;
-      await fileUploader.on("saved", function (event) {
-        files = event.file;
-        console.log(event.file);
-      });
-
-      // console.log(files);
-
+      console.log(data.uploadMapInput.fileInformation[0]);
       let body = data;
       let worldName = body.worldNameInput;
       if (fs.existsSync(`./src/Assets/${worldName}`)) {
@@ -542,58 +530,49 @@ io.on("connection", function (socket) {
               }
             });
             console.log(`Folder for world: ${worldName} created`);
+
+            let mapFile = body.uploadMapInput.fileText;
+            let mapFileName = body.uploadMapInput.fileInformation[0].name;
+            let objectFile = body.mapObjectFilesInput.fileText;
+            let objectFileName = body.mapObjectFilesInput.fileInformation[0].name;
+            let objectImageFiles;
+            let objectImageFilesName;
+            for (let i = 0; i < body.mapObjectImageFilesInput.fileText.length; i++) {
+              let image = body.mapObjectImageFilesInput.fileText[i];
+              let data = image.replace(/^data:image\/\w+;base64,/, "");
+              let buf = Buffer.from(data, "base64");
+              objectImageFiles = buf;
+              objectImageFilesName = body.mapObjectImageFilesInput.fileInformation[i].name;
+              fs.writeFileSync(
+                __dirname + `/src/Assets/${worldName}/Object_Image_Files/${objectImageFilesName}`,
+                objectImageFiles,
+                (err) => {
+                  if (err) {
+                    console.error(err);
+                  } else {
+                    console.log("File created");
+                  }
+                }
+              );
+            }
+            fs.writeFileSync(`./src/Assets/${worldName}/Maps/${mapFileName}`, mapFile, (err) => {
+              if (err) {
+                console.error(err);
+              } else {
+                console.log("File created");
+              }
+            });
+            fs.writeFileSync(`./src/Assets/${worldName}/Objects/${objectFileName}`, objectFile, (err) => {
+              if (err) {
+                console.error(err);
+              } else {
+                console.log("File created");
+              }
+            });
           }
         });
       }
-      let mapFile = body.uploadMapInput[0];
-      let mapFileName = mapFile.name;
-      let objectFile = body.mapObjectFilesInput[0];
-      let objectFileName = objectFile.name;
-      let objectImageFiles;
-      let objectImageFilesName;
-      for (let i = 0; i < body.mapObjectImageFilesInput.length; i++) {
-        let image = body.mapObjectImageFilesInput[i];
-        objectImageFiles = image;
-        objectImageFilesName = objectImageFiles?.name;
-        mv(
-          `./src/Files_to_upload/${objectImageFilesName}`,
-          `./src/Assets/${worldName}/Object_Image_Files/${objectImageFilesName}`,
-          { mkdirp: true },
-          (err) => {
-            if (err) {
-              console.error(err);
-            } else {
-              console.log(
-                `Uploaded: ${objectImageFilesName} to: ./src/Assets/${worldName}/Object_Image_Files/`
-              );
-            }
-          }
-        );
-      }
-      mv(
-        `./src/Files_to_upload/${mapFileName}`,
-        `./src/Assets/${worldName}/Maps/${mapFileName}`,
-        { mkdirp: true },
-        (err) => {
-          if (err) {
-            console.error(err);
-          } else {
-            console.log(`Uploaded: ${mapFileName} to: ./src/Assets/${worldName}/Maps/`);
-          }
-        }
-      );
-      mv(
-        `./src/Files_to_upload/${objectFileName}`,
-        `./src/Assets/${worldName}/Objects/${objectFileName}`,
-        { mkdirp: true },
-        (err) => {
-          if (err) {
-            console.error(err);
-          } else {
-            console.log(`Uploaded: ${objectFileName} to: ./src/Assets/${worldName}/Objects/`);
-          }
-        }
-      );
+      // socket.emit("uploaded files for preview");
     }
   });
 

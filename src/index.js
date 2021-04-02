@@ -25,6 +25,7 @@ let mapPreviewCanvas = document.getElementById("mapPreviewCanvas");
 let mapPreviewCtx = mapPreviewCanvas.getContext("2d");
 let currentWorld;
 let ctx = canvas.getContext("2d");
+let loaderContainer = document.getElementById("loaderContainer");
 let timeCtx = timeCanvas.getContext("2d");
 let LogInOrSignUp = document.getElementById("LogInOrSignUp");
 let usernameInput = document.getElementById("usernameInput");
@@ -116,8 +117,11 @@ let waterTiles = [2742, 2838, 2650, 2651, 2744, 2745, 2647, 2648, 2649, 2741, 27
 let mainPlayer;
 let objectBinaryTree;
 let newPlayer;
+let mapFileText;
+let objectFileText;
+let objectFileImagesText;
 let limiters;
-let uploader = new SocketIOFileUpload(socket);
+let reader = new FileReader();
 
 // if (loggedIn == false) {
 //   worldSelected = false;
@@ -297,7 +301,7 @@ let get_object_looping_limiters = function (arr) {
   }
 };
 
-let updateMap = function () {
+let updateMap = function (ctx) {
   for (let i = 0; i < mapJson.layers.length; i++) {
     for (let u = totalNumberOfNecessaryTiles; u >= leftMostIndex; u--) {
       let dataValues;
@@ -435,7 +439,7 @@ let checkObjectCollision = function (currentObject, mainPlayer) {
   }
 };
 
-let updateObjects = function () {
+let updateObjects = function (ctx) {
   for (let i = 0; i < mapJson.layers.length; i++) {
     if (mapJson.layers[i].objects) {
       get_object_looping_limiters(mapJson.layers[i].objects);
@@ -456,7 +460,14 @@ let updateObjects = function () {
             type: "object",
             y: objectDrawY,
             draw: (() => {
-              drawObjects(objectImage, objectDrawX, objectDrawY, objectClippingWidth, objectClippingHeight);
+              drawObjects(
+                ctx,
+                objectImage,
+                objectDrawX,
+                objectDrawY,
+                objectClippingWidth,
+                objectClippingHeight
+              );
               // ctx.fillText(n, objectDrawX, objectDrawY);
             })(),
           });
@@ -490,7 +501,7 @@ let objectCollisionHandler = function () {
   }
 };
 
-let drawObjects = function (image, objectDrawX, objectDrawY, objectClippingWidth, objectClippingHeight) {
+let drawObjects = function (ctx, image, objectDrawX, objectDrawY, objectClippingWidth, objectClippingHeight) {
   ctx.drawImage(image, objectDrawX, objectDrawY, objectClippingWidth, objectClippingHeight);
 };
 
@@ -615,6 +626,27 @@ let drawTime = function () {
   timeCtx.fillText(parsedTime, 10, 30);
 };
 
+function readMultipleFiles(files, variable) {
+  let reader2 = new FileReader();
+  function readFile(index, variable) {
+    if (index >= files.length) {
+      objectFileImagesText = variable;
+      return;
+    }
+    let file = files[index];
+    reader2.onload = function (e) {
+      if (index !== 0) {
+        variable += "SEPERATOR" + e.target.result;
+      } else if (index == 0) {
+        variable = e.target.result;
+      }
+      readFile(index + 1, variable);
+    };
+    reader2.readAsDataURL(file);
+  }
+  readFile(0, variable);
+}
+
 let drawingLoop = function () {
   // if (worldSelected) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -634,7 +666,7 @@ let drawingLoop = function () {
   mainPlayerIndexY = Math.floor((Math.round(mainPlayer.y) + mainPlayer.height) / tileSize);
   mainPlayerIndex = mainPlayerIndexX + mainPlayerIndexY * mapWidth;
   totalNumberOfNecessaryTiles = Math.floor((canvas.width / tileSize) * (canvas.height / tileSize)) * mapWidth;
-  updateMap();
+  updateMap(ctx);
   for (let i in PlayerList) {
     let player = PlayerList[i];
     if (PlayerList.length > 1) {
@@ -652,7 +684,7 @@ let drawingLoop = function () {
       mainPlayer.draw();
     }
   }
-  updateObjects();
+  updateObjects(ctx);
   drawTime();
   for (let i = 0; i < mapJson.layers.length; i++) {
     if (mapJson.layers[i].objects) {
@@ -805,27 +837,40 @@ createNewWorldBtn.onclick = function () {
 
 mapPreviewBtn.onclick = function (e) {
   e.preventDefault();
-  let loaderContainer = document.getElementById("loaderContainer");
   loaderContainer.style.display = "flex";
-  // console.log(
-  // uploadMapInput.files
-  // mapObjectFilesInput.files[0].path,
-  // mapObjectImageFilesInput.files[0].path
-  // );
-  uploader.listenOnInput(document.getElementById("worldNameInput"));
-  uploader.listenOnInput(document.getElementById("uploadMapInput"));
-  uploader.listenOnInput(document.getElementById("mapObjectFilesInput"));
-  uploader.listenOnInput(document.getElementById("mapObjectImageFilesInput"));
-  socket.emit("show preview", {
-    worldNameInput: worldNameInput.value,
-    uploadMapInput: uploadMapInput.files,
-    mapObjectFilesInput: mapObjectFilesInput.files,
-    mapObjectImageFilesInput: mapObjectImageFilesInput.files,
-  });
+
+  currentWorld = worldNameInput.value.replace(" ", "_");
+  reader.readAsText(uploadMapInput.files[0]);
+
+  reader.onload = function () {
+    console.log(reader.result.slice(0, 100));
+    mapFileText = reader.result;
+    reader.readAsText(mapObjectFilesInput.files[0]);
+    reader.onload = function () {
+      objectFileText = reader.result;
+      console.log(reader.result.slice(0, 100));
+      readMultipleFiles(mapObjectImageFilesInput.files, objectFileImagesText);
+      setTimeout(() => {
+        socket.emit("show preview", {
+          worldNameInput: currentWorld,
+          uploadMapInput: { fileInformation: uploadMapInput.files, fileText: mapFileText },
+          mapObjectFilesInput: { fileInformation: mapObjectFilesInput.files, fileText: objectFileText },
+          mapObjectImageFilesInput: {
+            fileInformation: mapObjectImageFilesInput.files,
+            fileText: objectFileImagesText.split("SEPERATOR"),
+          },
+        });
+      }, 2000);
+    };
+  };
+
+  reader.onerror = function () {
+    console.log(reader.error);
+  };
 };
 
 submitWorld.onclick = function () {
-  socket.emit("create new world", worldNameInput.value, JSON.stringify(uploadMapInput.files[0]));
+  socket.emit("create new world", currentWorld, JSON.stringify(uploadMapInput.files[0]));
 };
 
 //Warning: End of Dom event handlers
@@ -1231,6 +1276,30 @@ socket.on("Past winners", function (winners) {
 socket.on("new winner", function (winner) {
   pastWinnersArray.push(winner);
   pastWinnersLogic();
+});
+
+socket.on("uploaded files for preview", async function () {
+  loaderContainer.style.display = "none";
+  //Explanation: Requests the server for the JSON to create the map
+  await fetch(`/warmap?worldName=${currentWorld}`)
+    .then((res) => res.json())
+    .then((data) => {
+      mapJson = data;
+    });
+
+  //Explanation: Requests the server for the JSON to create the templates for all the different objects
+  await fetch(`/objects?worldName=${currentWorld}`)
+    .then((res) => res.json())
+    .then((data) => {
+      objectJson = data;
+    });
+
+  worldSelected = true;
+  mainPlayer.currentWorld = currentWorld;
+  mainPlayer.worldSelected = true;
+  console.log(mapJson);
+  updateMap(mapPreviewCtx);
+  updateObjects(mapPreviewCtx);
 });
 
 socket.on("needs name", function () {
